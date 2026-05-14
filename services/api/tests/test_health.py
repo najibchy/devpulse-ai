@@ -9,7 +9,8 @@ os.environ.setdefault("GITHUB_WEBHOOK_SECRET", "test-secret")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 
 
