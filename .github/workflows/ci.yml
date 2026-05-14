@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test-api:
+    name: Lint & Test — FastAPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/api/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r services/api/requirements.txt
+          pip install ruff pytest pytest-asyncio httpx
+
+      - name: Lint (ruff)
+        run: ruff check services/api/
+
+      - name: Run tests
+        run: pytest services/api/tests/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql://devpulse:devpulse_secret@localhost:5432/devpulse
+          REDIS_URL: redis://localhost:6379/0
+          OPENAI_API_KEY: sk-test-placeholder
+          GITHUB_WEBHOOK_SECRET: test-secret
+
+  lint-and-test-worker:
+    name: Lint & Test — Celery Worker
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/worker/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r services/worker/requirements.txt
+          pip install ruff pytest
+
+      - name: Lint (ruff)
+        run: ruff check services/worker/
+
+      - name: Run tests
+        run: pytest services/worker/tests/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql://devpulse:devpulse_secret@localhost:5432/devpulse
+          REDIS_URL: redis://localhost:6379/0
+          OPENAI_API_KEY: sk-test-placeholder
+
+  lint-and-test-dashboard:
+    name: Lint & Test — Django Dashboard
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: devpulse
+          POSTGRES_PASSWORD: devpulse_secret
+          POSTGRES_DB: devpulse
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/dashboard/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r services/dashboard/requirements.txt
+          pip install ruff pytest pytest-django
+
+      - name: Lint (ruff)
+        run: ruff check services/dashboard/
+
+      - name: Run Django migrations
+        run: python services/dashboard/manage.py migrate
+        env:
+          DATABASE_URL: postgresql://devpulse:devpulse_secret@localhost:5432/devpulse
+          DJANGO_SECRET_KEY: ci-secret-key
+          DJANGO_DEBUG: "True"
+
+      - name: Run tests
+        run: pytest services/dashboard/tests/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql://devpulse:devpulse_secret@localhost:5432/devpulse
+          DJANGO_SECRET_KEY: ci-secret-key
+          DJANGO_DEBUG: "True"
